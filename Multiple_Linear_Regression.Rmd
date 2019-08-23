@@ -1,0 +1,700 @@
+---
+title: "Predicting the distribution of cities "
+author: "Multiple Linear Regression INSOFE Lab Session"
+date: "20 July 2019"
+output:
+  html_document:
+---
+
+**NOTE** Before starting this assignment please remember to clear your environment, you can do that by running the following code chunk
+
+```{r}
+
+rm(list = ls(all=TRUE))
+
+```
+
+# Agenda 
+
+* Get the data
+
+* Ask an interesting question
+
+* Explore the data
+
+* Data Pre-processing
+
+* Model the data
+
+* Evaluation
+
+
+# Reading & Understanding the Data
+
+* Make sure the dataset is located in your current working directory
+
+```{r}
+
+data <- read.csv("Final.csv")
+compdata <- read.csv("complete.csv")
+SIC <- read.csv("SIC_integer.csv")
+postcode <- read.csv('/Users/jyothigupta/Documents/UCL/GIS/GIS class/week 1/Postcode.csv')
+joinedPost <- read.csv('Joined_Postcode.csv',sep=",", 
+                comment.char = "",check.names = FALSE, quote="\"",
+                na.strings=c("NA","NaN", " ") )
+PC<- read.csv('Postcode_coordinates.csv') #this does not have the SIC code data
+pop <- read.csv('/Users/jyothigupta/Documents/UCL/CASA_Dissertations/UrbanScalinglaw/Data/population/population.csv',sep=",", 
+                comment.char = "",check.names = FALSE, quote="\"",
+                na.strings=c("NA","NaN", " "))
+pop_sim <- read.csv('/Users/jyothigupta/Documents/UCL/Urbansimulation/week5/data/popincome.csv',sep=",",comment.char = "",check.names = FALSE, quote="\"",
+                na.strings=c("NA","NaN", " "))
+pop_MSOA <- read.csv('/Users/jyothigupta/Documents/UCL/CASA_Dissertations/UrbanScalinglaw/Data/population/MSOApop.csv',sep=",", 
+                comment.char = "",check.names = FALSE, quote="\"",
+                na.strings=c("NA","NaN", " "))
+```
+r - Drop data frame columns by name 
+
+```{r}
+joinedPost$SICcombine <- NULL
+joinedPost$usertype <- NULL
+joinedPost$FID <- NULL
+```
+
+
+
+* Use the str() function to get a feel for the dataset.
+
+```{r}
+str(joinedPost)
+str(data)
+
+```
+
+* The dataset has .815302 rows and  30 column
+
+* The column/variable names' explanation is given below:
+
+
+
+* Take a look at the data using the "head()" and "tail()" functions
+
+```{r}
+
+head(data)
+
+tail(data)
+
+```
+
+
+
+# Exploratory Analysis
+
+## Summary Statistics
+
+* Understand the distribution of various variables in the datset using the "summary()" function
+
+```{r}
+
+summary(data)
+summary(joinedPost$msoa11cd)
+str(joinedPost$msoa11cd)
+str(pop_MSOA$AreaCode)
+summary(pop_MSOA$AreaCode)
+```
+
+## Scatter Plots
+
+* A few bi-variate relationships are plotted below, but you are encouraged to explore the dataset in more detail
+
+```{r fig.height= 8, fig.width = 9}
+
+par(mfrow = c(2,2))
+hist(pop$population)
+hist(pop_MSOA$AllAgepop)
+hist(pop_sim$pop)
+hist(joinedPost$SIC2018)
+hist(joinedPost$SIC_2013)
+plot(joinedPost$SIC2018, joinedPost$SIC_2013, ylab = "SIC for year 2013", xlab = "Population of people from the UK Census Data", main = "SIC 2013 vs Population")
+plot(pop_MSOA$AllAgepop, pop_MSOA$AreaCode, ylab = "SIC for year 2013", xlab = "Population of people from the UK Census Data", main = "SIC 2013 vs Population")
+
+plot(data$population, data$SIC_2013, ylab = "SIC for year 2013", xlab = "Population of people from the UK Census Data", main = "SIC 2013 vs Population")
+
+plot(data$incorporationdate, data$SIC_2013, ylab = "SIC for year 2013", xlab = "Incorporation by town", main = "SIC 2013 vs Data of Start of industry")
+
+plot(data$Density, data$SIC_2013, ylab = "SIC for year 2013", xlab = "Density", main = "SIC 2013 vs Density of LA")
+
+plot(data$AreaUK, data$SIC_2013, ylab = "SIC for year 2013", xlab = "Area per town", main = "SIC 2013 vs AreaUk")
+
+plot(data$company2013, data$SIC_2013, ylab = "SIC for year 2013", xlab = "Status of Company", main = "SIC 2013 vs Company 2013")
+
+plot(data$companycatagory2013, data$SIC_2013, ylab = "SIC for year 2013", xlab = "Category of Company", main = "SIC 2013 vs Company Category")
+
+
+```
+
+```{r}
+library(ggplot2)
+p = ggplot() + 
+  geom_line(data = SIC, aes(x = SIC$SIC_2013, y = SIC$SIC2018), color = "blue") +
+  geom_line(data = SIC, aes(x = SIC$SIC_2013, y = SIC$SIC2018), color = "red") +
+  xlab('SIC_2013') +
+  ylab('SIC2018')
+
+print(p)
+
+library(ggplot2)
+p = ggplot() + 
+  geom_line(data = joinedPost, aes(x = joinedPost$SIC_2013, y = joinedPost$SIC2018), color = "blue") +
+  geom_line(data = joinedPost, aes(x = joinedPost$SIC_2013, y = joinedPost$SIC2018), color = "red") +
+  xlab('SIC_2013') +
+  ylab('SIC2018')
+
+print(p)
+
+library(ggplot2)
+p = ggplot() + 
+  geom_line(data =  newdata, aes(x = newdata$SIC_2013, y = newdata$SIC2018), color = "blue") +
+  geom_line(data = newdata, aes(x = newdata$SIC_2013, y = newdata$SIC2018), color = "red") +
+  xlab('SIC_2013') +
+  ylab('SIC2018')
+
+print(p)
+
+```
+
+
+## Correlation Plot
+
+* Let's have a look at the various correlations between the variables in the dataset
+
+```{r fig.height= 8, fig.width = 9}
+
+library(corrplot)
+
+corrplot(cor(x=data$population,y=data$SIC_2013, use = "complete.obs"), method = "spearman")
+library(dplyr)
+mydata <- data[,c('population','SIC_2013','SIC2018','Density','AreaUK','company2013','companycatagory2013','company2018','companycatagory2018','LivesSchoolchild','Lives_communal','Lives_House','SIC2018_log','SIC2013_log','population_log')]
+M <- cor(mydata)
+corrplot(M, method = "number")
+corrplot(M, method = "circle")
+```
+
+Joined data for creating a complete set woth population, SIC and POSTcodes
+
+```{r}
+final=merge(joinedPost,pop_MSOA,by=c('msoa11cd'),all.x = FALSE)
+write.csv(final,file='MyDataFinal.csv')
+
+str(final)
+str(final$AllAgepop)
+summary(final$AllAgepop)
+hist(final$AllAgepop)
+hist(log(final$AllAgepop+1))
+hist(log(final$AllAgepop+1),breaks = 100)
+table(final$msoa11cd)
+table(final$companycategory)
+table(final$companycategory,final$CompanyCategory)
+var(final$AllAgepop)
+sd(final$AllAgepop)
+range((final$AllAgepop))
+quantile((final$AllAgepop),probs = c(0.20,0.5,0.90,1))
+cor((final$AllAgepop),(final$SIC_2013))
+cor((final$AllAgepop),(final$SIC2018), method = 'spearman')
+cov((final$AllAgepop),(final$SIC2018))
+#freqdist(final$AllAgepop)
+```
+creating a function for freqdist
+```{r}
+freqdist =function(x,freqorder=F)
+{
+  counts = table(x)
+  n=sum(counts)
+  if(freqorder)ord=order(-counts)
+  else ord=1:length(counts)
+  data.frame(
+    row.names = row.names((count[ord]),
+                          Counts=as.vector(counts[ord]),
+                          Percent=100*as.vector(counts[ord])/n,
+                          CumCount=cumsum(as.vector((Counts[ords])),
+                            CumPercent=100*cumsum((as.vector(counts[ords]))/n
+                                                                )))
+  )
+}
+freqdist(final)
+barplot((final$AllAgepop))
+
+```
+
+```{r}
+plot((log(final$AllAgepop)),(log(final$SIC2018)),main = 'Regresion plot on the Population vs SIC 2018',xlab = 'Population for all ages',ylab = 'SIC for 2018')
+#abline(lm(final$AllAgepop + final$SIC2018,data = final),col='red')
+library(car)
+scatterplot(AllAgepop ~ SIC2018|companystatus,data = final,xlab = 'Population',ylab = 'SIC',main='Pop vs SIC')
+library(ggplot2)
+ggplot(final,aes(x=log(AllAgepop),y=log(SIC2018))) + 
+          geom_point()
+
+```
+
+
+# Data Pre-processing
+
+* Today we will impute missing values and standardize the data __after__ splitting the data into train and test sets
+
+## Train/Test Split
+
+* 70/30 - Train/Test split
+
+```{r}
+
+set.seed(29)
+
+# the "sample()" function helps us to randomly sample 70% of the row indices of the dataset
+
+train_rows <- sample(x = 1:nrow(data), size = 0.7*nrow(data))
+
+# We use the above indices to subset the train and test sets from the data
+
+train_data <- data[train_rows, ]
+
+test_data <- data[-train_rows, ]
+
+```
+
+## Missing Values imputation
+
+* Find out the number of missing values in the dataset
+
+* Impute the missing values using the "preProcess()" function in conjunction with the "knnImpute" method
+
+```{r}
+
+sum(is.na(data))
+sum(is.na(joinedPost))
+sum(is.na(final))
+newdata <- na.omit(joinedPost)
+sum(is.na(newdata))
+str(newdata)
+#install.packages('caret')
+library(caret)
+install.packages('RANN')
+library(RANN)
+imputer_values <- preProcess(x = train_data, method = "knnImpute")
+
+sum(is.na(train_data))
+
+train_data <- predict(object = imputer_values, newdata = train_data)
+
+sum(is.na(train_data))
+
+sum(is.na(test_data))
+
+test_data <- predict(object = imputer_values, newdata = test_data)
+
+sum(is.na(test_data))
+sum(is.na(SIC))
+imputer_values <- preProcess(x = SIC, method = "knnImpute")
+SIC_data <- predict(object = imputer_values, newdata = SIC)
+
+```
+
+
+## Standardizing the Data
+
+* We will use the Caret pakcage to standardize the data after the split using the __"preProcess()"__ function
+
+* It saves the metrics such as mean and standard deviation used for calculating the standardized value by creating a model object
+
+* We can then use the model object in the __"predict()"__ function to standardize any other unseen dataset with the same distribuiton and variables
+
+```{r}
+
+library(caret)
+
+# The "preProcess()" function creates a model object required for standardizing unseen data
+
+# Do not standardize the target variable
+
+std_model <- preProcess(train_data[, !names(train_data) %in% c("population")], method = c("center", "scale"))
+
+# The predict() function is used to standardize any other unseen data
+
+train_data[, !names(train_data) %in% c("population")] <- predict(object = std_model, newdata = train_data[, !names(train_data) %in% c("MV")])
+
+test_data[, !names(train_data) %in% c("population")] <- predict(object = std_model, newdata = test_data[, !names(train_data) %in% c("MV")])
+
+```
+
+
+```{r}
+#FFor the KBI firms, look at the  ONS Science and technology classification 2015.
+
+
+#http://webarchive.nationalarchives.gov.uk/20160105160709/http://www.ons.gov.uk/ons/rel/regional-trends/london-analysis/identifying-science-and-technology-businesses-in-official-statistics/index.html
+# Digital technologies
+sic_digital = c(26110,26120,26200,26400,26511,26512,26800,33130,
+                58210,58290,62011,62012,62020,62030,62090,63110,
+                63120,95110)
+# Life Sciences and healthcare
+sic_science = c(21100,21200,26600,26701,32500,72110,75000,86101,
+                86102,86210,86220,86230,86900)
+# Publishing and broadcasting
+sic_publishing = c(26301,26309,26702,58110,58120,58130,58141,58142,
+                   58190,59111,59112,59113,59120,59131,59132,59133,
+                   59140,59200,60100,60200,61100,61200, 61300,61900,
+                   63910,63990,73110,73120,73200,74100,74201,74202,
+                   74203,74209,95120)
+# Other scientific activities of manufacturing
+sic_otherScManuf = c(19201,19209,20110,20120,20130,95210,95220,95250,
+                     20140,20150,20160,20170,20200,20301,20302,20411,
+                     20412,20420,20510,20520,20530,20590,20600,25210,
+                     25300,25400,26513,26514,26520,27110,27120,27200,
+                     27310,27320,27330,27400,27510,27520,27900,28110,
+                     28120,28131,28132,28140,28150,28210,28220,28230,
+                     28240,28250,28290,28301,28302,28410,28490,28910,
+                     28921,28922,28923,28930,28940,28950,28960,28990,
+                     29100,29201,29202,29203,29310,29320,30110,30120,
+                     30200,30300,30400,30910,30920,30990,32120,32401,
+                     33120,33140,33150,33160,33170)
+# Other scientific activity services
+sic_otherScServices = c(51101,51102,51210,51220,71111,71112,71121,71122,
+                        71129,71200,72190,72200,74901,74902,85410,85421,
+                        85422)
+
+
+#####   From OliverWyman classification of the leisure industry
+### http://www.oliverwyman.com/content/dam/oliver-wyman/global/en/files/archive/2012/20120612_BISL_OW_State_of_the_UK_Leisure_Industry_Final_Report.pdf
+# Food and accomodation
+sic_food = c(55100,55201,55202,55209,55300, 56101,56102,56103,
+             56210,56290,56301,56302)
+# Entertainment
+sic_entertainment = c(59140, 82301,82302, 90010,91011,91012,91020,91030,
+                      91040,92000,93110, 93120,93130,93191,93199, 93020)
+# Retail except retail trade of motor vehicles
+sic_retail = c(47190,47990,47290,47789,47782,47810,47890,47820,
+               47781,47110,47791,47430,47300,47250,47610,47240,
+               47530,47710,47410,47750,47540,47230,47760,47721,
+               47210,47599,47650,47520,47741,47722,47220,47749,
+               47421,47630,47591,47620,47799,47640,47429,47510,
+               47260,47770,47910)
+
+
+```
+
+
+
+
+# Modelling the Data
+
+```{r}
+
+##--- Step 6: Linear regression model building--------------------------------------##
+LinReg = lm(log(AllAgepop) ~ log(SIC_2013), data = final)
+coefficients(LinReg)
+
+LinReg = lm(SIC2013_log ~ population_log, data = data)
+coefficients(LinReg)
+LinReg1 = lm(SIC2018_log ~ population_log, data = data)
+coefficients(LinReg1)
+
+coefficients(LinReg2)
+## Summary of model:
+summary(LinReg)
+summary(LinReg1)
+summary(LinReg)
+#Optional for info: 
+#To extract the coefficients:
+coefficients(LinReg)
+coefficients(LinReg1)
+coefficients(LinReg)[1]
+coefficients(LinReg)[2]
+names(coefficients(LinReg))
+#To extract the residuals:
+LinReg$residuals
+#To extract the train predictions:
+LinReg$fitted.values
+##__________________________________________________________________________________##
+```
+
+```{r}
+##--- Step 7: Check for validity of linear regression assumptions ------------------##
+par(mfrow = c(2,2))
+plot(LinReg)
+par(mfrow = c(1,1))
+##__________________________________________________________________________________##
+
+```
+
+```{r}
+##--- Step 8: Predict on testdata --------------------------------------------------##
+test_prediction = predict(LinReg, data)
+test_prediction
+test_actual = data$population_log
+##__________________________________________________________________________________##
+
+
+##--- Step 9: Error Metrics --------------------------------------------------------##
+#install.packages('DMwR')
+library(DMwR)
+#Error verification on train data
+regr.eval(data$population_log, LinReg$fitted.values)
+
+#Error verification on test data
+regr.eval(test_actual, test_prediction)
+##__________________________________________________________________________________##
+
+
+##--- Step 10: Confidence and Prediction Intervals----------------------------------##
+# Confidence Intervals talk about the average values intervals
+# Prediction Intervals talk about the all individual values intervals
+Conf_Pred = data.frame(predict(LinReg, data, interval="confidence",level=0.95))
+Pred_Pred = data.frame(predict(LinReg, data, interval="prediction",level=0.95))
+
+names(Conf_Pred)
+
+plot(data$population_log, data$SIC2013_log, xlab = "Population", ylab = "SIC 2013")
+
+points(data$population_log,Conf_Pred$fit,type="l", col="green", lwd=2)
+points(data$population_log,Conf_Pred$lwr,pch="-", col="red", lwd=4)
+points(data$population_log,Conf_Pred$upr,pch="-", col="red", lwd=4)
+points(data$population_log,Pred_Pred$lwr,pch="-", col="blue", lwd=4)
+points(data$population_log,Pred_Pred$upr,pch="-", col="blue", lwd=4)
+##__________________________________________________________________________________##
+#-----------------------end---------------------------------------------------------##
+
+```
+
+```{r}
+
+data_digital <- data[data$SIC_2013  %in% sic_digital, ]
+data_digital18 <- data[data$SIC2018  %in% sic_digital, ]
+
+#data_digital
+#data_science <- data[data$SIC_2013  %in% sic_science, ]
+data_science18 <- data[data$SIC2018  %in% sic_science, ]
+
+data_publishing <- data[data$SIC_2013  %in% sic_publishing, ]
+data_publishing18 <- data[data$SIC2018  %in% sic_publishing, ]
+
+data_othermanu <- data[data$SIC_2013  %in% sic_otherScManuf, ]
+
+data_otherScSer <- data[data$SIC_2013  %in% sic_otherScServices, ]
+
+data_food <- data[data$SIC_2013  %in% sic_food, ]
+
+data_enter <- data[data$SIC_2013  %in% sic_entertainment, ]
+
+data_retail <- data[data$SIC_2013  %in% sic_retail, ]
+
+```
+
+## Basic Model
+
+* The "." adds all the variables other than the response variable while building the model.
+
+```{r}
+
+model_basic <- lm(formula = AllAgepop~SIC_2013, data = final)
+model_sample <- lm(formula = log(AllAgepop)~log(SIC_2013), data = final)
+summary(model_basic)
+
+par(mfrow = c(2,2))
+
+plot(model_basic)
+
+####
+
+
+```
+
+## stepAIC model
+
+* "stepAIC()" is a function in the MASS package
+
+* stepAIC uses AIC (Akaike information criterion) to either drop variables ("backward" direction) or add variables ("forward" direction) from the model
+
+```{r}
+
+library(MASS)
+
+model_aic <- stepAIC(model_basic, direction = "both")
+
+#model_aic_da <- stepAIC(LinReg,direction = 'both')
+
+summary(model_aic)
+
+par(mfrow = c(2,2))
+
+plot(model_aic)
+
+```
+
+## Modifying the Model with the VIF
+
+**Variance Inflation Factor :**
+
+$$VIF_{k} = \dfrac{1}{1 - R_{k}^2}$$
+
+$R_{k}^2$ is the R^2-value obtained by regressing the kth predictor on the remaining predictors. VIF gives us an idea of multi-collinearity
+
+* Every explanatory variable would have a VIF score
+
+* A VIF > 4 means that there are signs of multi-collinearity and anything greater than 10 means that an explanatory variable should be dropped
+
+* We use the "vif()" function from the car package. 
+
+```{r}
+install.packages('car')
+library(car)
+
+vif(model_basic)
+
+
+vif(model_aic)
+
+```
+
+* After applying the stepAIC, the VIF values have slightly reduced, but the variables "RAD" and "TAX" have VIF values higher than 4
+
+* Let's take a look at the correlation between the "RAD" and "TAX" variables
+
+```{r}
+
+#cor(housing_data$RAD, housing_data$TAX)
+cor(final$AllAgepop,final$SIC_2013)
+
+```
+
+* The correlation coefficient is extremely high between the "RAD" and "TAX" variables
+
+* let's now remove the "TAX" variable, as it is the lesser significant of the two
+
+* Build another model without the "TAX" variable, and take a look at the VIFs
+
+
+```{r}
+
+model3 <- lm(formula = log(AllAgepop)+log(SIC_2013)~log(SIC2018) , data = final)
+
+summary(model3)
+
+par(mfrow = c(2,2))
+
+plot(model3)
+
+vif(model3)
+
+```
+
+
+# Evaluation and Selection of Model
+
+## Picking the Right Model
+
+* The third model built after verifying the vif scores has a similar adjusted R^2 score compared to the previous models with significantly lower no. of explanatory variables and inter-variable interactions.
+
+* The VIF values of the predictors in the third model are lower when compared to the the other two models
+
+* Due to the above two reasons we pick the third model
+
+# Communication
+
+## Prediction
+
+Predict the Housing prices of the unseen boston housing data, using the chosen model.
+
+```{r}
+
+preds_model <- predict(model3, test_data[, !(names(test_data) %in% c("MV"))])
+
+```
+
+## Performance Metrics
+
+Once we choose the model we have to report performance metrics on the test data. We are going to report three error metrics for regression.
+
+### Error Metrics for Regression
+
+* Mean Absolute Error (MAE):
+
+$$MAE = \dfrac{1}{n}\times|\sum_{i = 1}^{n}y_{i} - \hat{y_{i}}|$$
+
+
+* Mean Squared Error (MSE):
+
+$$MSE = \dfrac{1}{n}\times(\sum_{i = 1}^{n}y_{i} - \hat{y_{i}})^2$$
+
+
+* Root Mean Squared Error (RMSE):
+
+$$RMSE = \sqrt{\dfrac{1}{n}\times(\sum_{i = 1}^{n}y_{i} - \hat{y_{i}})^2}$$
+
+
+* Mean Absolute Percentage Error (MAPE):
+
+$$MAPE = \dfrac{100}{n}\times\mid\dfrac{\sum_{i = 1}^{n}y_{i} - \hat{y_{i}}}{y_{i}}\mid$$
+
+
+### Report Performance Metrics
+
+* Report performance metrics obtained by using the chosen model on the test data
+
+```{r}
+
+library(DMwR)
+
+regr.eval(test_data$MV, preds_model)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
